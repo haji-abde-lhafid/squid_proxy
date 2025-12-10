@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Universal Squid Proxy Installation Script with Auth Fix
-# Works on: CentOS, RHEL, Fedora, Ubuntu, Debian, Alpine, Amazon Linux
+# Works on: CentOS, RHEL, Fedora, Ubuntu, Debian, Alpine, Amazon Linux, AlmaLinux
 # Usage: sudo bash install_squid_proxy_fixed.sh
 
 set -e  # Exit on any error
@@ -56,8 +56,8 @@ install_squid() {
             apt-get update
             apt-get install -y squid apache2-utils
             ;;
-        centos|rhel|fedora|amzn)
-            print_info "Installing Squid on CentOS/RHEL/Fedora/Amazon Linux..."
+        centos|rhel|fedora|amzn|almalinux)
+            print_info "Installing Squid on CentOS/RHEL/Fedora/Amazon Linux/AlmaLinux..."
             if command -v dnf &> /dev/null; then
                 dnf install -y squid httpd-tools
             else
@@ -103,7 +103,7 @@ fix_auth_paths() {
             ubuntu|debian)
                 apt-get install -y squid-langpack 2>/dev/null || true
                 ;;
-            centos|rhel|fedora|amzn)
+            centos|rhel|fedora|amzn|almalinux)
                 if command -v dnf &> /dev/null; then
                     dnf install -y squid-helpers 2>/dev/null || true
                 else
@@ -191,7 +191,7 @@ configure_firewall() {
                 print_status "UFW configured"
             fi
             ;;
-        centos|rhel|fedora|amzn)
+        centos|rhel|fedora|amzn|almalinux)
             if systemctl is-active --quiet firewalld; then
                 firewall-cmd --permanent --add-port=${PROXY_PORT}/tcp
                 firewall-cmd --reload
@@ -247,7 +247,7 @@ main() {
     print_info "Updating system packages..."
     case $OS in
         ubuntu|debian) apt-get update ;;
-        centos|rhel|fedora|amzn) 
+        centos|rhel|fedora|amzn|almalinux) 
             if command -v dnf &> /dev/null; then dnf update -y; else yum update -y; fi 
             ;;
         alpine) apk update ;;
