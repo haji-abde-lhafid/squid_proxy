@@ -213,8 +213,9 @@ create_squid_config() {
         auth_path="/usr/lib64/squid/basic_ncsa_auth"
     fi
     
-    # Configure http_port based on mode
+    # Configure http_port and tcp_outgoing_address based on mode
     local http_port_config=""
+    local tcp_outgoing_config=""
     if [ "$ALL_IPS_MODE" = true ] && [ ${#ALL_PUBLIC_IPS[@]} -gt 0 ]; then
         # Bind to each IP explicitly to prevent redirects
         # Each IP will work independently without redirecting to others
@@ -222,6 +223,16 @@ create_squid_config() {
         for ip in "${ALL_PUBLIC_IPS[@]}"; do
             http_port_config="${http_port_config}http_port ${ip}:${PROXY_PORT}"$'\n'
             print_info "   Binding to IP: ${ip}:${PROXY_PORT}"
+        done
+        # Create ACLs and tcp_outgoing_address for each IP
+        # This ensures each IP uses its own IP for outgoing connections
+        print_info "Configuring outgoing IP routing for each connection IP..."
+        for ip in "${ALL_PUBLIC_IPS[@]}"; do
+            # Create ACL name from IP (replace dots with underscores)
+            local acl_name="local_ip_$(echo $ip | tr '.' '_')"
+            tcp_outgoing_config="${tcp_outgoing_config}acl ${acl_name} localip ${ip}"$'\n'
+            tcp_outgoing_config="${tcp_outgoing_config}tcp_outgoing_address ${ip} ${acl_name}"$'\n'
+            print_info "   Routing connections via ${ip} to use ${ip} for outgoing"
         done
     else
         # Default: bind to all interfaces (Squid default behavior)
@@ -246,6 +257,7 @@ auth_param basic credentialsttl 2 hours
 auth_param basic casesensitive off
 
 # ACL Definitions
+${tcp_outgoing_config}
 acl authenticated proxy_auth REQUIRED
 acl SSL_ports port 443
 acl Safe_ports port 80
@@ -507,6 +519,8 @@ main() {
     echo "   ✅ Configuration uses dynamic auth path"
     if [ "$ALL_IPS_MODE" = true ]; then
         echo "   ✅ Proxy configured to listen on all public IPs"
+        echo "   ✅ Each IP uses its own IP for outgoing connections (no redirects)"
+        echo "   ✅ Example: Connecting via 5.78.30.178 will show 5.78.30.178 as public IP"
     fi
     echo ""
     echo "📝 Usage Examples:"
