@@ -43,9 +43,24 @@ pause() {
 run_script() {
     local script_name=$1
     if [ -f "$script_name" ]; then
+        # Check if it's an installation script
+        local args=""
+        if [[ "$script_name" == "install_squid_dante.sh" ]] || [[ "$script_name" == "install_squid_proxy.sh" ]]; then
+            echo ""
+            echo -e "${YELLOW}Installation Options:${NC}"
+            read -p "Do you want to bind proxy to ALL public IPs? (y/n) [Default: n]: " all_ips_choice
+            if [[ "$all_ips_choice" =~ ^[Yy]$ ]]; then
+                args="--all-ips"
+                echo -e "${GREEN}Enabled: Binding to all IPs${NC}"
+            else
+                echo -e "${BLUE}Standard installation (single IP)${NC}"
+            fi
+            echo ""
+        fi
+
         echo -e "${GREEN}Starting $script_name...${NC}"
         chmod +x "$script_name"
-        ./"$script_name"
+        ./"$script_name" $args
     else
         echo -e "${RED}Error: Script $script_name not found!${NC}"
         read -p "Do you want to download it now? (y/n): " choice
@@ -53,7 +68,10 @@ run_script() {
             download_file "$script_name"
             if [ -f "$script_name" ]; then
                 chmod +x "$script_name"
-                ./"$script_name"
+                # Recursive call to handle args after download
+                run_script "$script_name"
+                # Return to avoid double pause
+                return
             fi
         fi
     fi
