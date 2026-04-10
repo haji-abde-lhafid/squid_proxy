@@ -452,11 +452,23 @@ main() {
     echo ""
     echo "📡 HTTP Proxy (Squid):"
     echo "   Port: $HTTP_PORT"
-    echo "   URL: http://$PROXY_USER:$PROXY_PASSWORD@$SERVER_IP:$HTTP_PORT"
+    if [ "$ALL_IPS_MODE" = true ]; then
+        for ip in "${ALL_PUBLIC_IPS[@]}"; do
+            echo "   URL: http://$PROXY_USER:$PROXY_PASSWORD@$ip:$HTTP_PORT"
+        done
+    else
+        echo "   URL: http://$PROXY_USER:$PROXY_PASSWORD@$SERVER_IP:$HTTP_PORT"
+    fi
     echo ""
     echo "🧦 SOCKS5 Proxy (Dante):"
     echo "   Port: $SOCKS_PORT"
-    echo "   URL: socks5://$PROXY_USER:$PROXY_PASSWORD@$SERVER_IP:$SOCKS_PORT"
+    if [ "$ALL_IPS_MODE" = true ]; then
+        for ip in "${ALL_PUBLIC_IPS[@]}"; do
+            echo "   URL: socks5://$PROXY_USER:$PROXY_PASSWORD@$ip:$SOCKS_PORT"
+        done
+    else
+        echo "   URL: socks5://$PROXY_USER:$PROXY_PASSWORD@$SERVER_IP:$SOCKS_PORT"
+    fi
     echo ""
     if [ "$ALL_IPS_MODE" = true ]; then
         echo "ℹ️  Bound to ${#ALL_PUBLIC_IPS[@]} IPs. You can use any of them."
