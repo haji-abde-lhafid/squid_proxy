@@ -221,7 +221,8 @@ create_squid_config() {
         # Each IP will work independently without redirecting to others
         print_info "Configuring Squid to listen on each IP independently (no redirects)"
         for ip in "${ALL_PUBLIC_IPS[@]}"; do
-            http_port_config="${http_port_config}http_port ${ip}:${PROXY_PORT}"$'\n'
+            local safe_ip="$(echo $ip | tr '.' '_')"
+            http_port_config="${http_port_config}http_port ${ip}:${PROXY_PORT} name=port_${safe_ip}"$'\n'
             print_info "   Binding to IP: ${ip}:${PROXY_PORT}"
         done
         # Create ACLs and tcp_outgoing_address for each IP
@@ -229,8 +230,9 @@ create_squid_config() {
         print_info "Configuring outgoing IP routing for each connection IP..."
         for ip in "${ALL_PUBLIC_IPS[@]}"; do
             # Create ACL name from IP (replace dots with underscores)
-            local acl_name="local_ip_$(echo $ip | tr '.' '_')"
-            tcp_outgoing_config="${tcp_outgoing_config}acl ${acl_name} localip ${ip}"$'\n'
+            local safe_ip="$(echo $ip | tr '.' '_')"
+            local acl_name="acl_${safe_ip}"
+            tcp_outgoing_config="${tcp_outgoing_config}acl ${acl_name} myportname port_${safe_ip}"$'\n'
             tcp_outgoing_config="${tcp_outgoing_config}tcp_outgoing_address ${ip} ${acl_name}"$'\n'
             print_info "   Routing connections via ${ip} to use ${ip} for outgoing"
         done

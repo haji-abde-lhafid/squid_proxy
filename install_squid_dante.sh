@@ -209,10 +209,10 @@ configure_squid() {
     if [ "$ALL_IPS_MODE" = true ] && [ ${#ALL_PUBLIC_IPS[@]} -gt 0 ]; then
         print_info "Configuring Squid to listen on each IP independently (no redirects)"
         for ip in "${ALL_PUBLIC_IPS[@]}"; do
-            http_port_config="${http_port_config}http_port ${ip}:${HTTP_PORT}"$'\n'
-            local acl_name="local_ip_$(echo $ip | tr '.' '_')"
-            tcp_outgoing_config="${tcp_outgoing_config}acl ${acl_name} localip ${ip}"$'\n'
-            tcp_outgoing_config="${tcp_outgoing_config}tcp_outgoing_address ${ip} ${acl_name}"$'\n'
+            local safe_ip="$(echo $ip | tr '.' '_')"
+            http_port_config="${http_port_config}http_port ${ip}:${HTTP_PORT} name=port_${safe_ip}"$'\n'
+            tcp_outgoing_config="${tcp_outgoing_config}acl acl_${safe_ip} myportname port_${safe_ip}"$'\n'
+            tcp_outgoing_config="${tcp_outgoing_config}tcp_outgoing_address ${ip} acl_${safe_ip}"$'\n'
         done
     else
         http_port_config="http_port ${HTTP_PORT}"
@@ -279,41 +279,35 @@ configure_dante() {
     local iface=$(get_default_interface)
     if [ -z "$iface" ]; then iface="eth0"; fi
     
-    local dante_internal=""
-    local dante_external=""
-    local dante_rotation=""
-    
-    if [ "$ALL_IPS_MODE" = true ] && [ ${#ALL_PUBLIC_IPS[@]} -gt 0 ]; then
-        print_info "Configuring Dante SOCKS5 for all IPs..."
+    if [ "$ALL_IPS_MODE" = true ] && [ ${#ALL_PUBLIC_IPS[@]} -gt 0 ] && command -v systemctl &> /dev/null; then
+        print_info "Configuring Dante SOCKS5 to run a dedicated instance per IP..."
+        
+        # Disable generic dante
+        systemctl disable danted 2>/dev/null || true
+        systemctl disable sockd 2>/dev/null || true
+        systemctl stop danted 2>/dev/null || true
+        systemctl stop sockd 2>/dev/null || true
+        
+        local dante_bin="/usr/sbin/danted"
+        [ -x "/usr/sbin/sockd" ] && dante_bin="/usr/sbin/sockd"
+        
         for ip in "${ALL_PUBLIC_IPS[@]}"; do
-            dante_internal="${dante_internal}internal: ${ip} port = ${SOCKS_PORT}"$'\n'
-            dante_external="${dante_external}external: ${ip}"$'\n'
-        done
-        dante_rotation="external.rotation: same-same"
-    else
-        dante_internal="internal: 0.0.0.0 port = ${SOCKS_PORT}"
-        dante_external="external: ${iface}"
-    fi
-
-    cat > "$dante_conf" << EOF
-logoutput: syslog stdout /var/log/sockd.log
-
-# Server address
-${dante_internal}
-${dante_external}
-${dante_rotation}
-
-# User authentication
+            local safe_ip="$(echo $ip | tr '.' '_')"
+            local spec_conf="/etc/sockd_${safe_ip}.conf"
+            local spec_srv="sockd_${safe_ip}.service"
+            
+            cat > "$spec_conf" << EOF
+logoutput: syslog stdout /var/log/sockd_${safe_ip}.log
+internal: ${ip} port = ${SOCKS_PORT}
+external: ${ip}
 socksmethod: username
 clientmethod: none
 user.privileged: root
 user.unprivileged: nobody
-
 client pass {
     from: 0.0.0.0/0 to: 0.0.0.0/0
     log: error connect disconnect
 }
-
 socks pass {
     from: 0.0.0.0/0 to: 0.0.0.0/0
     command: bind connect udpassociate
@@ -321,7 +315,47 @@ socks pass {
     socksmethod: username
 }
 EOF
-    print_status "Dante configuration created at $dante_conf"
+            cat > "/etc/systemd/system/${spec_srv}" << EOF
+[Unit]
+Description=SOCKS v5 Dante Server for IP ${ip}
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${dante_bin} -f ${spec_conf}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            systemctl daemon-reload
+            systemctl enable "${spec_srv}"
+        done
+        print_status "Dante multi-instance configurations created"
+    else
+        # Single configuration
+        cat > "$dante_conf" << EOF
+logoutput: syslog stdout /var/log/sockd.log
+internal: 0.0.0.0 port = ${SOCKS_PORT}
+external: ${iface}
+socksmethod: username
+clientmethod: none
+user.privileged: root
+user.unprivileged: nobody
+client pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: error connect disconnect
+}
+socks pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    command: bind connect udpassociate
+    log: error connect disconnect
+    socksmethod: username
+}
+EOF
+        print_status "Dante configuration created at $dante_conf"
+    fi
 }
 
 # Configure firewall
@@ -366,17 +400,23 @@ start_services() {
         systemctl enable squid
         systemctl restart squid
         
-        # Determine Dante service name
-        if systemctl list-unit-files | grep -q danted.service; then
-            systemctl enable danted
-            systemctl restart danted
-        elif systemctl list-unit-files | grep -q sockd.service; then
-            systemctl enable sockd
-            systemctl restart sockd
+        if [ "$ALL_IPS_MODE" = true ] && [ ${#ALL_PUBLIC_IPS[@]} -gt 0 ]; then
+            for ip in "${ALL_PUBLIC_IPS[@]}"; do
+                local safe_ip="$(echo $ip | tr '.' '_')"
+                systemctl restart "sockd_${safe_ip}.service"
+            done
         else
-            # Fallback try
-            systemctl enable danted 2>/dev/null || systemctl enable sockd 2>/dev/null
-            systemctl restart danted 2>/dev/null || systemctl restart sockd 2>/dev/null
+            # Determine generic Dante service name
+            if systemctl list-unit-files | grep -q danted.service; then
+                systemctl enable danted
+                systemctl restart danted
+            elif systemctl list-unit-files | grep -q sockd.service; then
+                systemctl enable sockd
+                systemctl restart sockd
+            else
+                systemctl enable danted 2>/dev/null || systemctl enable sockd 2>/dev/null
+                systemctl restart danted 2>/dev/null || systemctl restart sockd 2>/dev/null
+            fi
         fi
         
     elif [ -x /etc/init.d/squid ]; then
