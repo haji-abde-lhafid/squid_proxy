@@ -205,9 +205,14 @@ configure_squid() {
     
     # Configure http_port
     local http_port_config=""
+    local tcp_outgoing_config=""
     if [ "$ALL_IPS_MODE" = true ] && [ ${#ALL_PUBLIC_IPS[@]} -gt 0 ]; then
+        print_info "Configuring Squid to listen on each IP independently (no redirects)"
         for ip in "${ALL_PUBLIC_IPS[@]}"; do
             http_port_config="${http_port_config}http_port ${ip}:${HTTP_PORT}"$'\n'
+            local acl_name="local_ip_$(echo $ip | tr '.' '_')"
+            tcp_outgoing_config="${tcp_outgoing_config}acl ${acl_name} localip ${ip}"$'\n'
+            tcp_outgoing_config="${tcp_outgoing_config}tcp_outgoing_address ${ip} ${acl_name}"$'\n'
         done
     else
         http_port_config="http_port ${HTTP_PORT}"
@@ -226,6 +231,7 @@ auth_param basic realm "Squid Proxy Server"
 auth_param basic credentialsttl 2 hours
 auth_param basic casesensitive off
 
+${tcp_outgoing_config}
 acl authenticated proxy_auth REQUIRED
 acl SSL_ports port 443
 acl Safe_ports port 80
@@ -240,6 +246,7 @@ forwarded_for delete
 via off
 request_header_access Via deny all
 request_header_access X-Forwarded-For deny all
+request_header_access Forwarded-For deny all
 
 maximum_object_size 256 MB
 cache_dir ufs /var/spool/squid 1000 16 256
@@ -272,12 +279,29 @@ configure_dante() {
     local iface=$(get_default_interface)
     if [ -z "$iface" ]; then iface="eth0"; fi
     
+    local dante_internal=""
+    local dante_external=""
+    local dante_rotation=""
+    
+    if [ "$ALL_IPS_MODE" = true ] && [ ${#ALL_PUBLIC_IPS[@]} -gt 0 ]; then
+        print_info "Configuring Dante SOCKS5 for all IPs..."
+        for ip in "${ALL_PUBLIC_IPS[@]}"; do
+            dante_internal="${dante_internal}internal: ${ip} port = ${SOCKS_PORT}"$'\n'
+            dante_external="${dante_external}external: ${ip}"$'\n'
+        done
+        dante_rotation="external.rotation: same-same"
+    else
+        dante_internal="internal: 0.0.0.0 port = ${SOCKS_PORT}"
+        dante_external="external: ${iface}"
+    fi
+
     cat > "$dante_conf" << EOF
 logoutput: syslog stdout /var/log/sockd.log
 
 # Server address
-internal: 0.0.0.0 port = ${SOCKS_PORT}
-external: ${iface}
+${dante_internal}
+${dante_external}
+${dante_rotation}
 
 # User authentication
 socksmethod: username
