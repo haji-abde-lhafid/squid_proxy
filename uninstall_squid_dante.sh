@@ -45,6 +45,13 @@ stop_services() {
         
         systemctl stop sockd || true
         systemctl disable sockd || true
+        
+        # Stop and disable dynamic Dante instances
+        for svc in $(systemctl list-unit-files 'sockd_*.service' | grep '\.service' | awk '{print $1}'); do
+            systemctl stop $svc || true
+            systemctl disable $svc || true
+        done
+        
     elif [ -x /etc/init.d/squid ]; then
         service squid stop || true
         service danted stop || true
@@ -91,8 +98,16 @@ remove_files() {
     rm -rf /etc/squid
     rm -f /etc/danted.conf
     rm -f /etc/sockd.conf
+    rm -f /etc/sockd_*.conf
+    rm -f /etc/systemd/system/sockd_*.service
+    
+    if systemctl --version &> /dev/null; then
+        systemctl daemon-reload || true
+    fi
+    
     rm -rf /var/log/squid
     rm -f /var/log/sockd.log
+    rm -f /var/log/sockd_*.log
     rm -rf /var/spool/squid
     
     # Remove auth helper symlinks created by install script
