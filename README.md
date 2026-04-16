@@ -256,6 +256,8 @@ This repository also includes:
 - `add_user.sh` - Script to add users to the proxy
 - `fix_squid.sh` - Script to fix common Squid issues
 - `monitor.sh` - Script to monitor Squid proxy
+- `manage_proxy.sh` - Central management menu for Squid Proxy scripts
+- `clear_logs.sh` - Script to clear Squid and Dante proxy logs
 
 ## Support
 
