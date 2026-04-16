@@ -24,6 +24,7 @@ SCRIPTS=(
     "check_proxy_services.sh"
     "monitor.sh"
     "clear_logs.sh"
+    "setup_log_cron.sh"
 )
 
 # Function to print the menu header
@@ -116,10 +117,11 @@ while true; do
     echo "7. Check Proxy Services (Auto-Restart)"
     echo "8. Monitor Proxy Usage"
     echo "9. Clear Proxy Logs"
-    echo "10. Download / Update All Scripts"
+    echo "10. Setup Auto-Clear Logs (Cron - Every 2h)"
+    echo "11. Download / Update All Scripts"
     echo "0. Exit"
     echo -e "${BLUE}====================================================${NC}"
-    read -p "Enter your choice [0-10]: " choice
+    read -p "Enter your choice [0-11]: " choice
 
     case $choice in
         1)
@@ -150,6 +152,9 @@ while true; do
             run_script "clear_logs.sh"
             ;;
         10)
+            run_script "setup_log_cron.sh"
+            ;;
+        11)
             download_all_scripts
             ;;
         0)

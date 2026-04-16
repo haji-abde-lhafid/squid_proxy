@@ -258,6 +258,7 @@ This repository also includes:
 - `monitor.sh` - Script to monitor Squid proxy
 - `manage_proxy.sh` - Central management menu for Squid Proxy scripts
 - `clear_logs.sh` - Script to clear Squid and Dante proxy logs
+- `setup_log_cron.sh` - Sets up an automatic log cleanup cron job for Squid and Dante
 
 ## Support
 
