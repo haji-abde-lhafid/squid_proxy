@@ -33,13 +33,25 @@ maximum_object_size_in_memory 512 KB
 maximum_object_size 8 MB
 cache_replacement_policy heap LFUDA
 memory_replacement_policy heap GDSF
+client_db off
+half_closed_clients off
+persistent_connection_after_authorization on
+pconn_timeout 120 seconds
+read_timeout 60 seconds
+request_timeout 30 seconds
 
-# DNS
-dns_nameservers 8.8.8.8 1.1.1.1 8.8.4.4
+# DNS & Resolution Tuning
+dns_nameservers 1.1.1.1 8.8.8.8 9.9.9.9
 dns_v4_first on
+dns_timeout 5 seconds
+dns_defnames off
+ipcache_size 10240
+ipcache_low 90
+ipcache_high 95
+fqdncache_size 10240
 
-# Logging
-access_log daemon:/var/log/squid/access.log squid
+# Logging (Buffered for high performance)
+access_log daemon:/var/log/squid/access.log squid buffer-size=64KB
 cache_log /var/log/squid/cache.log
 logfile_rotate 10
 
@@ -82,9 +94,9 @@ EOF
         fi
         
         cat >> "$config_file" << EOF
-# Authentication Setup
+# Authentication Setup (Scaled helper processes)
 auth_param basic program ${auth_param} ${PASSWD_FILE}
-auth_param basic children 10 startup=5 idle=1
+auth_param basic children 64 startup=10 idle=5
 auth_param basic realm Proxy Authentication
 auth_param basic credentialsttl 2 hours
 acl authenticated proxy_auth REQUIRED
@@ -116,8 +128,9 @@ refresh_pattern ^gopher:    1440    0%      1440
 refresh_pattern -i (/cgi-bin/|\?) 0 0%      0
 refresh_pattern .           0       20%     4320
 
-# Network Settings
-forwarded_for off
+# Network Settings & Header Management
+forwarded_for delete
+via off
 request_header_access Allow allow all
 request_header_access Authorization allow all
 request_header_access WWW-Authenticate allow all
@@ -143,10 +156,11 @@ request_header_access Mime-Version allow all
 request_header_access Retry-After allow all
 request_header_access Title allow all
 request_header_access Connection allow all
+request_header_access Keep-Alive allow all
 request_header_access Proxy-Connection allow all
 request_header_access User-Agent allow all
 request_header_access Cookie allow all
-request_header_access All deny all
+request_header_access All allow all
 EOF
     
     print_success "Squid configuration generated."

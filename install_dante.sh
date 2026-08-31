@@ -31,9 +31,12 @@ generate_dante_conf() {
 logoutput: /var/log/danted.log
 user.privileged: root
 user.notprivileged: nobody
-timeout.io: 0
+timeout.connect: 30
+timeout.io: 60
+timeout.negotiate: 30
+srch_domain: off
 
-# Limits
+# Limits & Method
 clientmethod: none
 EOF
 

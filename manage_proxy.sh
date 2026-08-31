@@ -9,7 +9,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
 # Repository details
 REPO_URL="https://raw.githubusercontent.com/haji-abde-lhafid/squid_proxy/main"
-FILES=("common.sh" "system_utils.sh" "network_utils.sh" "user_manager.sh" "install_squid.sh" "install_dante.sh" "install_squid_dante.sh" "uninstall_squid.sh" "uninstall_dante.sh" "repair_proxy.sh" "monitor_proxy.sh" "backup_proxy.sh" "restore_proxy.sh")
+FILES=("common.sh" "system_utils.sh" "network_utils.sh" "user_manager.sh" "install_squid.sh" "install_dante.sh" "install_squid_dante.sh" "optimize_proxy.sh" "benchmark_proxy.sh" "uninstall_squid.sh" "uninstall_dante.sh" "repair_proxy.sh" "monitor_proxy.sh" "backup_proxy.sh" "restore_proxy.sh")
 
 # Download files every time
 echo "Downloading required files from repository..."
@@ -89,12 +89,14 @@ main_menu() {
         echo -e "${YELLOW}10)${NC} Disable User"
         echo -e "${BLUE}11)${NC} Monitor Connections"
         echo -e "${BLUE}12)${NC} Repair Installation"
-        echo -e "${BLUE}13)${NC} Backup Configuration"
-        echo -e "${BLUE}14)${NC} Restore Configuration"
-        echo -e "${BLUE}15)${NC} Update Scripts"
-        echo -e "${RED}16)${NC} Uninstall Squid"
-        echo -e "${RED}17)${NC} Uninstall Dante"
-        echo -e "${RED}18)${NC} Uninstall Everything"
+        echo -e "${BLUE}13)${NC} Optimize Proxy Performance"
+        echo -e "${BLUE}14)${NC} Benchmark Proxy Latency"
+        echo -e "${BLUE}15)${NC} Backup Configuration"
+        echo -e "${BLUE}16)${NC} Restore Configuration"
+        echo -e "${BLUE}17)${NC} Update Scripts"
+        echo -e "${RED}18)${NC} Uninstall Squid"
+        echo -e "${RED}19)${NC} Uninstall Dante"
+        echo -e "${RED}20)${NC} Uninstall Everything"
         echo -e "${BOLD}0)${NC} Exit"
         echo ""
         
@@ -113,12 +115,14 @@ main_menu() {
             10) disable_user; read -r -p "Press Enter to continue..." ;;
             11) run_script "monitor_proxy.sh" ;;
             12) run_script "repair_proxy.sh" ;;
-            13) run_script "backup_proxy.sh" ;;
-            14) run_script "restore_proxy.sh" ;;
-            15) update_scripts ;;
-            16) run_script "uninstall_squid.sh" ;;
-            17) run_script "uninstall_dante.sh" ;;
-            18) 
+            13) run_script "optimize_proxy.sh" ;;
+            14) run_script "benchmark_proxy.sh" ;;
+            15) run_script "backup_proxy.sh" ;;
+            16) run_script "restore_proxy.sh" ;;
+            17) update_scripts ;;
+            18) run_script "uninstall_squid.sh" ;;
+            19) run_script "uninstall_dante.sh" ;;
+            20) 
                 if prompt_confirm "Are you sure you want to uninstall EVERYTHING?" "N"; then
                     bash "uninstall_squid.sh"
                     bash "uninstall_dante.sh"
