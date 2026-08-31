@@ -60,6 +60,27 @@ optimize_proxy() {
         fi
         generate_dante_conf "$auth_req"
         
+        # Symlink config for compatibility across Linux distros
+        ln -sf /etc/sockd.conf /etc/danted.conf 2>/dev/null || true
+        
+        # Setup PAM Configuration for username authentication
+        if [[ ! -f /etc/pam.d/sockd ]]; then
+            cat > /etc/pam.d/sockd << 'EOF'
+auth    required    pam_unix.so
+account required    pam_unix.so
+EOF
+        fi
+        if [[ ! -f /etc/pam.d/danted ]]; then
+            cat > /etc/pam.d/danted << 'EOF'
+auth    required    pam_unix.so
+account required    pam_unix.so
+EOF
+        fi
+        
+        # Ensure log permissions
+        touch /var/log/danted.log
+        chmod 666 /var/log/danted.log
+        
         print_info "Restarting Dante service..."
         systemctl restart "$service_name" >/dev/null 2>&1
         check_result $? "Dante optimized and restarted successfully" "Failed to restart Dante" true

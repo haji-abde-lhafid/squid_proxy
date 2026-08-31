@@ -40,15 +40,31 @@ repair_dante() {
         service_name="dante-server"
     fi
     
-    print_info "Fixing Dante permissions..."
+    print_info "Fixing Dante permissions, PAM, and symlinks..."
+    ln -sf /etc/sockd.conf /etc/danted.conf 2>/dev/null || true
+    
+    if [[ ! -f /etc/pam.d/sockd ]]; then
+        cat > /etc/pam.d/sockd << 'EOF'
+auth    required    pam_unix.so
+account required    pam_unix.so
+EOF
+    fi
+    if [[ ! -f /etc/pam.d/danted ]]; then
+        cat > /etc/pam.d/danted << 'EOF'
+auth    required    pam_unix.so
+account required    pam_unix.so
+EOF
+    fi
+    
     touch /var/log/danted.log
-    chmod 644 /var/log/danted.log
+    chmod 666 /var/log/danted.log
     
     print_info "Restarting Dante..."
     if systemctl restart "$service_name" >/dev/null 2>&1; then
         print_success "Dante repaired and restarted."
     else
         print_error "Failed to restart Dante."
+        journalctl -u "$service_name" --no-pager -n 20 2>/dev/null || true
     fi
 }
 

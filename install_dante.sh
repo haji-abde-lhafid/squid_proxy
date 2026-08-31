@@ -42,7 +42,15 @@ EOF
 
     # Internal Interfaces (Listen)
     echo "# Internal Bindings" >> "$config_file"
-    echo "internal: 0.0.0.0 port = 1080" >> "$config_file"
+    echo "internal: 127.0.0.1 port = 1080" >> "$config_file"
+    if [[ -n "$DEFAULT_INTERFACE" ]]; then
+        echo "internal: ${DEFAULT_INTERFACE} port = 1080" >> "$config_file"
+    fi
+    for ip in "${ALL_IPV4[@]}"; do
+        if [[ "$ip" != "127.0.0.1" ]]; then
+            echo "internal: ${ip} port = 1080" >> "$config_file"
+        fi
+    done
     if [[ "$HAS_IPV6" == "true" ]]; then
         echo "internal: ::0 port = 1080" >> "$config_file"
     fi
@@ -151,6 +159,27 @@ install_dante() {
     
     # Configure
     generate_dante_conf "$auth"
+    
+    # Symlink config for compatibility across Linux distros
+    ln -sf /etc/sockd.conf /etc/danted.conf 2>/dev/null || true
+    
+    # Setup PAM Configuration for username authentication
+    if [[ ! -f /etc/pam.d/sockd ]]; then
+        cat > /etc/pam.d/sockd << 'EOF'
+auth    required    pam_unix.so
+account required    pam_unix.so
+EOF
+    fi
+    if [[ ! -f /etc/pam.d/danted ]]; then
+        cat > /etc/pam.d/danted << 'EOF'
+auth    required    pam_unix.so
+account required    pam_unix.so
+EOF
+    fi
+    
+    # Ensure log file permissions for non-privileged user (nobody)
+    touch /var/log/danted.log
+    chmod 666 /var/log/danted.log
     
     # Firewall
     configure_firewall 1080
