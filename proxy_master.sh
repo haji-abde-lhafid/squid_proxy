@@ -74,6 +74,9 @@ detect_network() {
     if [[ -z "$DEFAULT_INTERFACE" ]]; then
         DEFAULT_INTERFACE=$(ip link show | awk -F: '$0 !~ "lo|vir|dock" {print $2}' | tr -d ' ' | head -n1)
     fi
+    if [[ -z "$DEFAULT_INTERFACE" ]]; then
+        DEFAULT_INTERFACE="eth0"
+    fi
     
     ALL_IPV4=()
     while IFS= read -r ip; do
@@ -85,6 +88,20 @@ detect_network() {
     HAS_IPV6=false
     if ip -6 addr show 2>/dev/null | grep -q "inet6"; then
         HAS_IPV6=true
+    fi
+}
+
+detect_dante_svc() {
+    if systemctl list-unit-files 2>/dev/null | grep -q "^dante-server"; then
+        echo "dante-server"
+    elif systemctl list-unit-files 2>/dev/null | grep -q "^danted"; then
+        echo "danted"
+    elif systemctl list-unit-files 2>/dev/null | grep -q "^sockd"; then
+        echo "sockd"
+    elif systemctl list-unit-files 2>/dev/null | grep -q "^dante"; then
+        echo "dante"
+    else
+        echo "danted"
     fi
 }
 
@@ -272,7 +289,9 @@ cache_log /var/log/squid/cache.log
 maximum_object_size 256 MB
 cache_dir ufs /var/spool/squid 1000 16 256
 EOF
-    chown -R proxy:proxy /var/log/squid /var/spool/squid 2>/dev/null || chown -R squid:squid /var/log/squid /var/spool/squid 2>/dev/null || true
+    chown -R proxy:proxy /var/log/squid /var/spool/squid /etc/squid 2>/dev/null || chown -R squid:squid /var/log/squid /var/spool/squid /etc/squid 2>/dev/null || true
+    chmod -R 755 /var/log/squid /var/spool/squid 2>/dev/null || true
+    squid -z >/dev/null 2>&1 || true
 }
 
 install_dante_conf() {
@@ -375,12 +394,8 @@ install_all() {
     systemctl enable squid >/dev/null 2>&1 || true
     systemctl restart squid >/dev/null 2>&1 || true
 
-    local dante_svc="danted"
-    if systemctl list-unit-files | grep -q "^dante-server"; then
-        dante_svc="dante-server"
-    elif systemctl list-unit-files | grep -q "^sockd"; then
-        dante_svc="sockd"
-    fi
+    local dante_svc
+    dante_svc=$(detect_dante_svc)
     systemctl enable "$dante_svc" >/dev/null 2>&1 || true
     systemctl restart "$dante_svc" >/dev/null 2>&1 || true
 
