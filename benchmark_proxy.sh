@@ -5,10 +5,10 @@
 # ==============================================================================
 
 source "$(dirname "$0")/common.sh" 2>/dev/null || true
+source "$(dirname "$0")/network_utils.sh" 2>/dev/null || true
 
 TARGET_URL="https://httpbin.org/ip"
 CONCURRENCY=10
-ITERATIONS=10
 
 format_curl_timing() {
     local proxy_type="$1"
@@ -17,28 +17,34 @@ format_curl_timing() {
     
     print_info "Measuring detailed timing for $proxy_type ($proxy_url)..."
     
-    local curl_cmd=(curl -s -o /dev/null -w "DNS Lookup: %{time_namelookup}s\nTCP Connect: %{time_connect}s\nApp Connect: %{time_appconnect}s\nPre-transfer: %{time_pretransfer}s\nTTFB: %{time_starttransfer}s\nTotal Time: %{time_total}s\nHTTP Code: %{http_code}\n")
-    
-    if [[ -n "$user_pass" ]]; then
-        curl_cmd+=("-U" "$user_pass")
-    fi
+    local curl_cmd=(curl -s -o /dev/null -w "DNS Lookup: %{time_namelookup}s\nTCP Connect: %{time_connect}s\nApp Connect: %{time_appconnect}s\nPre-transfer: %{time_pretransfer}s\nTTFB: %{time_starttransfer}s\nTotal Time: %{time_total}s\nHTTP Code: %{http_code}\n" --max-time 10)
     
     if [[ "$proxy_type" == "HTTP" ]]; then
-        curl_cmd+=("-x" "$proxy_url")
+        if [[ -n "$user_pass" ]]; then
+            curl_cmd+=("-x" "http://${user_pass}@${proxy_url}")
+        else
+            curl_cmd+=("-x" "http://${proxy_url}")
+        fi
     elif [[ "$proxy_type" == "SOCKS5" ]]; then
-        curl_cmd+=("--socks5-hostname" "$proxy_url")
+        if [[ -n "$user_pass" ]]; then
+            curl_cmd+=("-x" "socks5h://${user_pass}@${proxy_url}")
+        else
+            curl_cmd+=("-x" "socks5h://${proxy_url}")
+        fi
     fi
     
     curl_cmd+=("$TARGET_URL")
     
     local result
+    local status
     result=$("${curl_cmd[@]}" 2>&1)
+    status=$?
     
-    if [[ $? -eq 0 ]]; then
+    if [[ $status -eq 0 && $(echo "$result" | grep "HTTP Code: 200") ]]; then
         echo -e "${GREEN}--- Single Request Timing Metrics ($proxy_type) ---${NC}"
         echo "$result"
     else
-        print_error "Failed to complete request via $proxy_type proxy."
+        print_error "Request via $proxy_type proxy failed or returned non-200 status."
         echo "$result"
     fi
 }
@@ -59,13 +65,18 @@ benchmark_concurrency() {
     for i in $(seq 1 "$count"); do
         (
             local curl_cmd=(curl -s -o /dev/null -w "%{http_code} %{time_total}\n" --max-time 15)
-            if [[ -n "$user_pass" ]]; then
-                curl_cmd+=("-U" "$user_pass")
-            fi
             if [[ "$proxy_type" == "HTTP" ]]; then
-                curl_cmd+=("-x" "$proxy_url")
+                if [[ -n "$user_pass" ]]; then
+                    curl_cmd+=("-x" "http://${user_pass}@${proxy_url}")
+                else
+                    curl_cmd+=("-x" "http://${proxy_url}")
+                fi
             elif [[ "$proxy_type" == "SOCKS5" ]]; then
-                curl_cmd+=("--socks5-hostname" "$proxy_url")
+                if [[ -n "$user_pass" ]]; then
+                    curl_cmd+=("-x" "socks5h://${user_pass}@${proxy_url}")
+                else
+                    curl_cmd+=("-x" "socks5h://${proxy_url}")
+                fi
             fi
             curl_cmd+=("$TARGET_URL")
             
@@ -116,13 +127,31 @@ run_benchmark() {
     show_header
     print_info "Starting Proxy Latency & Concurrency Benchmark Utility"
     
-    local http_host="${1:-127.0.0.1:3128}"
-    local socks_host="${2:-127.0.0.1:1080}"
+    local http_host="${1:-}"
+    local socks_host="${2:-}"
     local auth="${3:-}"
+    
+    # Prompt for authentication if not supplied
+    if [[ -z "$auth" ]]; then
+        echo ""
+        read -r -p "Enter proxy username (leave empty if no auth): " puser
+        if [[ -n "$puser" ]]; then
+            read -r -s -p "Enter proxy password: " ppass
+            echo ""
+            auth="${puser}:${ppass}"
+        fi
+    fi
+    
+    if [[ -z "$http_host" ]]; then
+        http_host="127.0.0.1:3128"
+    fi
+    if [[ -z "$socks_host" ]]; then
+        socks_host="127.0.0.1:1080"
+    fi
     
     echo ""
     echo "=========================================="
-    echo " 1. Testing Squid (HTTP) Proxy"
+    echo " 1. Testing Squid (HTTP) Proxy ($http_host)"
     echo "=========================================="
     format_curl_timing "HTTP" "$http_host" "$auth"
     echo ""
@@ -130,7 +159,7 @@ run_benchmark() {
     
     echo ""
     echo "=========================================="
-    echo " 2. Testing Dante (SOCKS5) Proxy"
+    echo " 2. Testing Dante (SOCKS5) Proxy ($socks_host)"
     echo "=========================================="
     format_curl_timing "SOCKS5" "$socks_host" "$auth"
     echo ""

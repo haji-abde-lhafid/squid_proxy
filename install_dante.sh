@@ -42,9 +42,7 @@ EOF
 
     # Internal Interfaces (Listen)
     echo "# Internal Bindings" >> "$config_file"
-    for ip in "${ALL_IPV4[@]}"; do
-        echo "internal: ${ip} port = 1080" >> "$config_file"
-    done
+    echo "internal: 0.0.0.0 port = 1080" >> "$config_file"
     if [[ "$HAS_IPV6" == "true" ]]; then
         echo "internal: ::0 port = 1080" >> "$config_file"
     fi

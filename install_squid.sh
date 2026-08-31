@@ -112,9 +112,7 @@ EOF
 
     # Ports
     echo "# Port Bindings" >> "$config_file"
-    for ip in "${ALL_IPV4[@]}"; do
-        echo "http_port ${ip}:3128" >> "$config_file"
-    done
+    echo "http_port 0.0.0.0:3128" >> "$config_file"
     if [[ "$HAS_IPV6" == "true" ]]; then
         echo "http_port [::0]:3128" >> "$config_file"
     fi
