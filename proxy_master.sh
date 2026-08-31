@@ -390,9 +390,14 @@ uninstall_all() {
     detect_system
 
     print_info "Stopping proxy services..."
-    systemctl stop squid microsocks danted dante-server sockd >/dev/null 2>&1 || true
-    systemctl disable squid microsocks danted dante-server sockd >/dev/null 2>&1 || true
-    pkill -9 -f "squid|microsocks|sockd|danted" 2>/dev/null || true
+    systemctl stop squid microsocks danted dante-server sockd dante 3proxy >/dev/null 2>&1 || true
+    systemctl disable squid microsocks danted dante-server sockd dante 3proxy >/dev/null 2>&1 || true
+
+    print_info "Killing lingering processes on ports 8888, 1080, 3128..."
+    pkill -9 -f "squid|microsocks|sockd|danted|3proxy" 2>/dev/null || true
+    if command -v fuser &>/dev/null; then
+        fuser -k 8888/tcp 1080/tcp 3128/tcp >/dev/null 2>&1 || true
+    fi
 
     print_info "Removing packages & configurations..."
     if [[ "$PKG_MANAGER" == "apt" ]]; then
@@ -404,7 +409,8 @@ uninstall_all() {
 
     rm -rf /etc/squid /var/log/squid /var/spool/squid
     rm -f /usr/local/bin/microsocks /usr/bin/microsocks /etc/systemd/system/microsocks.service
-    rm -f /etc/sockd.conf /etc/danted.conf /etc/pam.d/sockd /etc/pam.d/danted /var/log/danted.log
+    rm -f /etc/sockd.conf /etc/danted.conf /etc/pam.d/sockd /etc/pam.d/danted /var/log/danted.log /var/run/danted
+    rm -f /etc/sysctl.d/99-proxy-performance.conf
     systemctl daemon-reload
 
     close_firewall "$HTTP_PORT"
