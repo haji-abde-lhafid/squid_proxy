@@ -47,19 +47,23 @@ monitor_proxy() {
         
         # Dante Stats
         local dante_svc=""
-        if systemctl list-unit-files | grep -q "^dante-server"; then
-            dante_svc="dante-server"
-        elif systemctl list-unit-files | grep -q "^danted"; then
-            dante_svc="danted"
+        if systemctl list-unit-files | grep -Eq "^(dante-server|danted|sockd|dante)"; then
+            dante_svc=$(systemctl list-unit-files | grep -Eo "^(dante-server|danted|sockd|dante)" | head -n1)
         fi
         
-        if [[ -n "$dante_svc" ]] && systemctl is-active "$dante_svc" &>/dev/null; then
-            echo -e "\n${BOLD}--- Dante Proxy ---${NC}"
-            local dante_conn=$(ss -tn state established '( sport = :1080 )' | wc -l)
-            local dante_conn=$((dante_conn - 1))
-            [[ $dante_conn -lt 0 ]] && dante_conn=0
-            echo -e "Active Connections: $dante_conn"
-            echo -e "Status: ${GREEN}Running${NC}"
+        echo -e "\n${BOLD}--- Dante Proxy ---${NC}"
+        if [[ -n "$dante_svc" ]]; then
+            if systemctl is-active "$dante_svc" &>/dev/null; then
+                local dante_conn=$(ss -tn state established '( sport = :1080 )' | wc -l)
+                local dante_conn=$((dante_conn - 1))
+                [[ $dante_conn -lt 0 ]] && dante_conn=0
+                echo -e "Active Connections: $dante_conn"
+                echo -e "Status: ${GREEN}Running${NC}"
+            else
+                echo -e "Status: ${RED}Stopped${NC}"
+            fi
+        else
+            echo -e "Status: ${YELLOW}Not Installed${NC}"
         fi
         
         sleep 1
