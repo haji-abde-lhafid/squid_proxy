@@ -68,6 +68,54 @@ EOF
     fi
 }
 
+repair_microsocks() {
+    print_info "Repairing MicroSocks SOCKS5 Service..."
+    
+    print_info "Checking for port 1080 conflicts..."
+    local active_proc
+    active_proc=$(ss -tulpn 2>/dev/null | grep ":1080" || true)
+    if [[ -n "$active_proc" ]]; then
+        print_warning "Port 1080 is currently occupied by: $active_proc"
+        print_info "Clearing port 1080 occupancy..."
+        systemctl stop danted dante-server sockd dante 3proxy >/dev/null 2>&1 || true
+        pkill -9 -f "sockd|danted|3proxy" 2>/dev/null || true
+        if command -v fuser &>/dev/null; then
+            fuser -k 1080/tcp >/dev/null 2>&1 || true
+        fi
+        sleep 1
+    fi
+
+    if [[ ! -f /etc/systemd/system/microsocks.service ]]; then
+        print_info "Recreating MicroSocks systemd unit file..."
+        cat > /etc/systemd/system/microsocks.service << 'EOF'
+[Unit]
+Description=MicroSocks SOCKS5 Proxy Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/microsocks -i 0.0.0.0 -p 1080 -u rooot -P aaaa5555
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        systemctl daemon-reload
+    fi
+
+    print_info "Restarting MicroSocks..."
+    systemctl daemon-reload
+    systemctl enable microsocks >/dev/null 2>&1 || true
+    if systemctl restart microsocks >/dev/null 2>&1; then
+        print_success "MicroSocks repaired and restarted."
+    else
+        print_error "Failed to restart MicroSocks."
+        journalctl -u microsocks --no-pager -n 20 2>/dev/null || true
+    fi
+}
+
 repair_proxy() {
     print_info "Starting Repair Process..."
     
@@ -78,7 +126,10 @@ repair_proxy() {
         found=1
     fi
     
-    if systemctl list-unit-files | grep -Eq "^(dante-server|danted)"; then
+    if systemctl list-unit-files | grep -q "^microsocks" || [[ -f /usr/local/bin/microsocks ]]; then
+        repair_microsocks
+        found=1
+    elif systemctl list-unit-files | grep -Eq "^(dante-server|danted)"; then
         repair_dante
         found=1
     fi
