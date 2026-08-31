@@ -18,6 +18,7 @@ uninstall_squid() {
         print_info "Stopping and disabling Squid service..."
         systemctl stop squid >/dev/null 2>&1
         systemctl disable squid >/dev/null 2>&1
+        pkill -9 -f squid 2>/dev/null || true
         
         print_info "Removing packages..."
         if [[ "$PKG_MANAGER" == "apt" ]]; then
@@ -34,11 +35,11 @@ uninstall_squid() {
         
         # Open port closing
         if command -v ufw &>/dev/null && ufw status | grep -qi "active"; then
+            ufw delete allow 8888/tcp >/dev/null 2>&1
             ufw delete allow 3128/tcp >/dev/null 2>&1
-            ufw delete allow 3128/udp >/dev/null 2>&1
         elif command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
+            firewall-cmd --remove-port=8888/tcp --permanent >/dev/null 2>&1
             firewall-cmd --remove-port=3128/tcp --permanent >/dev/null 2>&1
-            firewall-cmd --remove-port=3128/udp --permanent >/dev/null 2>&1
             firewall-cmd --reload >/dev/null 2>&1
         fi
         

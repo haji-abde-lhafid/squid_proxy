@@ -22,6 +22,7 @@ uninstall_dante() {
         fi
         systemctl stop "$service_name" >/dev/null 2>&1
         systemctl disable "$service_name" >/dev/null 2>&1
+        pkill -9 -f "sockd|danted" 2>/dev/null || true
         
         print_info "Removing packages..."
         if [[ "$PKG_MANAGER" == "apt" ]]; then
@@ -32,7 +33,8 @@ uninstall_dante() {
         fi
         
         print_info "Removing configuration and data..."
-        rm -f /etc/sockd.conf
+        rm -f /etc/sockd.conf /etc/danted.conf
+        rm -f /etc/pam.d/sockd /etc/pam.d/danted
         rm -f /var/log/danted.log
         rm -rf /var/run/danted
         

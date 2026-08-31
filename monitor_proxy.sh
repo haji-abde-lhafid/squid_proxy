@@ -38,7 +38,7 @@ monitor_proxy() {
         # Squid Stats
         if systemctl is-active squid &>/dev/null; then
             echo -e "\n${BOLD}--- Squid Proxy ---${NC}"
-            local squid_conn=$(ss -tn state established '( sport = :3128 )' | wc -l)
+            local squid_conn=$(ss -tn state established '( sport = :8888 || sport = :3128 )' | wc -l)
             local squid_conn=$((squid_conn - 1))
             [[ $squid_conn -lt 0 ]] && squid_conn=0
             echo -e "Active Connections: $squid_conn"

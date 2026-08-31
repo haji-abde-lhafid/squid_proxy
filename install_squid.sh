@@ -112,9 +112,9 @@ EOF
 
     # Ports
     echo "# Port Bindings" >> "$config_file"
-    echo "http_port 0.0.0.0:3128" >> "$config_file"
+    echo "http_port 0.0.0.0:8888" >> "$config_file"
     if [[ "$HAS_IPV6" == "true" ]]; then
-        echo "http_port [::0]:3128" >> "$config_file"
+        echo "http_port [::0]:8888" >> "$config_file"
     fi
     
     # Refresh Patterns
@@ -186,7 +186,7 @@ install_squid() {
     generate_squid_conf "$auth"
     
     # Firewall
-    configure_firewall 3128
+    configure_firewall 8888
     
     # Service
     print_info "Restarting and enabling Squid..."
@@ -196,8 +196,8 @@ install_squid() {
     check_result $? "Squid started successfully" "Failed to start Squid" true
     
     if [[ "$auth" == "true" ]]; then
-        print_info "Setting up initial user..."
-        add_user
+        print_info "Setting up default user (rooot)..."
+        add_user "rooot" "aaaa5555"
     fi
     
     print_success "Squid installation completed!"

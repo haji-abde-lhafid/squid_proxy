@@ -192,8 +192,9 @@ EOF
     check_result $? "Dante started successfully" "Failed to start Dante" true
     
     if [[ "$auth" == "true" ]]; then
-        print_info "To add users for Dante, they must be system users."
-        print_info "Example: useradd -M -s /sbin/nologin user && passwd user"
+        print_info "Setting up default user (rooot) for Dante..."
+        source "$(dirname "$0")/user_manager.sh" 2>/dev/null || true
+        add_user "rooot" "aaaa5555"
     fi
     
     print_success "Dante installation completed!"

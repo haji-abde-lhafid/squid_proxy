@@ -134,16 +134,16 @@ run_benchmark() {
     # Prompt for authentication if not supplied
     if [[ -z "$auth" ]]; then
         echo ""
-        read -r -p "Enter proxy username (leave empty if no auth): " puser
-        if [[ -n "$puser" ]]; then
-            read -r -s -p "Enter proxy password: " ppass
-            echo ""
-            auth="${puser}:${ppass}"
-        fi
+        read -r -p "Enter proxy username (default: rooot): " puser
+        puser="${puser:-rooot}"
+        read -r -s -p "Enter proxy password (default: aaaa5555): " ppass
+        echo ""
+        ppass="${ppass:-aaaa5555}"
+        auth="${puser}:${ppass}"
     fi
     
     if [[ -z "$http_host" ]]; then
-        http_host="127.0.0.1:3128"
+        http_host="127.0.0.1:8888"
     fi
     if [[ -z "$socks_host" ]]; then
         socks_host="127.0.0.1:1080"
