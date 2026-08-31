@@ -45,20 +45,18 @@ monitor_proxy() {
             echo -e "Status: ${GREEN}Running${NC}"
         fi
         
-        # Dante Stats
-        local dante_svc=""
-        if systemctl list-unit-files | grep -Eq "^(dante-server|danted|sockd|dante)"; then
-            dante_svc=$(systemctl list-unit-files | grep -Eo "^(dante-server|danted|sockd|dante)" | head -n1)
-        fi
-        
-        echo -e "\n${BOLD}--- Dante Proxy ---${NC}"
-        if [[ -n "$dante_svc" ]]; then
-            if systemctl is-active "$dante_svc" &>/dev/null; then
-                local dante_conn=$(ss -tn state established '( sport = :1080 )' | wc -l)
-                local dante_conn=$((dante_conn - 1))
-                [[ $dante_conn -lt 0 ]] && dante_conn=0
-                echo -e "Active Connections: $dante_conn"
-                echo -e "Status: ${GREEN}Running${NC}"
+        # SOCKS5 (MicroSocks / Dante) Stats
+        echo -e "\n${BOLD}--- MicroSocks SOCKS5 Proxy ---${NC}"
+        if systemctl is-active microsocks &>/dev/null; then
+            local socks_conn=$(ss -tn state established '( sport = :1080 )' | wc -l)
+            socks_conn=$((socks_conn - 1))
+            [[ $socks_conn -lt 0 ]] && socks_conn=0
+            echo -e "Active Connections: $socks_conn"
+            echo -e "Status: ${GREEN}Running${NC}"
+        elif systemctl list-unit-files | grep -Eq "^(dante-server|danted|sockd|dante)"; then
+            local d_svc=$(systemctl list-unit-files | grep -Eo "^(dante-server|danted|sockd|dante)" | head -n1)
+            if systemctl is-active "$d_svc" &>/dev/null; then
+                echo -e "Status: ${GREEN}Running (Dante)${NC}"
             else
                 echo -e "Status: ${RED}Stopped${NC}"
             fi

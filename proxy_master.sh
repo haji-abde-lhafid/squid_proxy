@@ -294,77 +294,48 @@ EOF
     squid -z >/dev/null 2>&1 || true
 }
 
-install_dante_conf() {
-    print_info "Building optimized Dante (SOCKS5) configuration on port $SOCKS_PORT..."
-    
-    cat > "$DANTE_CONF" << EOF
-# ============================================================
-# High-Performance Dante SOCKS5 Configuration
-# ============================================================
-
-logoutput: /var/log/danted.log
-user.privileged: root
-user.notprivileged: nobody
-timeout.connect: 30
-timeout.io: 60
-timeout.negotiate: 30
-srch_domain: off
-clientmethod: none
-
-# Internal Interface Bindings
-internal: 127.0.0.1 port = ${SOCKS_PORT}
-EOF
-
-    if [[ -n "$DEFAULT_INTERFACE" ]]; then
-        echo "internal: ${DEFAULT_INTERFACE} port = ${SOCKS_PORT}" >> "$DANTE_CONF"
-    fi
-    for ip in "${ALL_IPV4[@]}"; do
-        if [[ "$ip" != "127.0.0.1" ]]; then
-            echo "internal: ${ip} port = ${SOCKS_PORT}" >> "$DANTE_CONF"
-        fi
-    done
-    if [[ "$HAS_IPV6" == "true" ]]; then
-        echo "internal: ::0 port = ${SOCKS_PORT}" >> "$DANTE_CONF"
+install_microsocks_service() {
+    print_info "Building MicroSocks (SOCKS5) from source..."
+    if [[ "$PKG_MANAGER" == "apt" ]]; then
+        apt-get install -y -q gcc make git curl net-tools >/dev/null 2>&1
+    else
+        $PKG_MANAGER install -y gcc make git curl net-tools >/dev/null 2>&1 || true
     fi
 
-    cat >> "$DANTE_CONF" << EOF
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    git clone --depth 1 https://github.com/rofl0r/microsocks.git "$tmp_dir/microsocks" >/dev/null 2>&1 || {
+        curl -sSL https://github.com/rofl0r/microsocks/archive/refs/heads/master.tar.gz | tar -xz -C "$tmp_dir"
+        mv "$tmp_dir"/microsocks-* "$tmp_dir/microsocks" 2>/dev/null || true
+    }
 
-# External Interface
-external: ${DEFAULT_INTERFACE}
-socksmethod: username
+    cd "$tmp_dir/microsocks"
+    make clean >/dev/null 2>&1 || true
+    make -j"$(nproc 2>/dev/null || echo 2)" >/dev/null 2>&1
+    make install >/dev/null 2>&1 || cp microsocks /usr/local/bin/microsocks
+    chmod +x /usr/local/bin/microsocks
+    rm -rf "$tmp_dir"
+    cd - >/dev/null
 
-# Client Rules
-client pass {
-    from: 0.0.0.0/0 to: 0.0.0.0/0
-    log: error
-}
+    cat > /etc/systemd/system/microsocks.service << EOF
+[Unit]
+Description=MicroSocks SOCKS5 Proxy Server
+After=network.target
 
-# Socks Authentication Rules
-socks pass {
-    from: 0.0.0.0/0 to: 0.0.0.0/0
-    command: bind connect udpassociate
-    log: error
-    socksmethod: username
-}
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/microsocks -i 0.0.0.0 -p ${SOCKS_PORT} -u ${DEFAULT_USER} -P ${DEFAULT_PASS}
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-    ln -sf /etc/sockd.conf /etc/danted.conf 2>/dev/null || true
-    
-    if [[ ! -f /etc/pam.d/sockd ]]; then
-        cat > /etc/pam.d/sockd << 'EOF'
-auth    required    pam_unix.so
-account required    pam_unix.so
-EOF
-    fi
-    if [[ ! -f /etc/pam.d/danted ]]; then
-        cat > /etc/pam.d/danted << 'EOF'
-auth    required    pam_unix.so
-account required    pam_unix.so
-EOF
-    fi
-    
-    touch /var/log/danted.log
-    chmod 666 /var/log/danted.log
+    systemctl daemon-reload
+    systemctl enable microsocks >/dev/null 2>&1 || true
+    systemctl restart microsocks >/dev/null 2>&1 || true
 }
 
 install_all() {
@@ -374,30 +345,24 @@ install_all() {
     detect_network
     optimize_kernel
 
-    print_info "Installing Squid & Dante packages..."
+    print_info "Installing Squid & MicroSocks packages..."
     if [[ "$PKG_MANAGER" == "apt" ]]; then
         apt-get update -qq
-        apt-get install -y -q squid dante-server apache2-utils curl net-tools
+        apt-get install -y -q squid apache2-utils curl net-tools
     else
-        $PKG_MANAGER install -y squid dante-server httpd-tools curl net-tools || \
-        $PKG_MANAGER install -y squid dante httpd-tools curl net-tools
+        $PKG_MANAGER install -y squid httpd-tools curl net-tools
     fi
 
     install_squid_conf
-    install_dante_conf
+    install_microsocks_service
     add_user_cmd "$DEFAULT_USER" "$DEFAULT_PASS"
 
     configure_firewall "$HTTP_PORT"
     configure_firewall "$SOCKS_PORT"
 
-    print_info "Starting Squid & Dante services..."
+    print_info "Starting Squid & MicroSocks services..."
     systemctl enable squid >/dev/null 2>&1 || true
     systemctl restart squid >/dev/null 2>&1 || true
-
-    local dante_svc
-    dante_svc=$(detect_dante_svc)
-    systemctl enable "$dante_svc" >/dev/null 2>&1 || true
-    systemctl restart "$dante_svc" >/dev/null 2>&1 || true
 
     echo ""
     echo -e "${GREEN}${BOLD}==================================================${NC}"
@@ -417,11 +382,9 @@ uninstall_all() {
     detect_system
 
     print_info "Stopping proxy services..."
-    systemctl stop squid >/dev/null 2>&1 || true
-    systemctl disable squid >/dev/null 2>&1 || true
-    systemctl stop danted dante-server sockd >/dev/null 2>&1 || true
-    systemctl disable danted dante-server sockd >/dev/null 2>&1 || true
-    pkill -9 -f "squid|sockd|danted" 2>/dev/null || true
+    systemctl stop squid microsocks danted dante-server sockd >/dev/null 2>&1 || true
+    systemctl disable squid microsocks danted dante-server sockd >/dev/null 2>&1 || true
+    pkill -9 -f "squid|microsocks|sockd|danted" 2>/dev/null || true
 
     print_info "Removing packages & configurations..."
     if [[ "$PKG_MANAGER" == "apt" ]]; then
@@ -432,7 +395,9 @@ uninstall_all() {
     fi
 
     rm -rf /etc/squid /var/log/squid /var/spool/squid
+    rm -f /usr/local/bin/microsocks /usr/bin/microsocks /etc/systemd/system/microsocks.service
     rm -f /etc/sockd.conf /etc/danted.conf /etc/pam.d/sockd /etc/pam.d/danted /var/log/danted.log
+    systemctl daemon-reload
 
     close_firewall "$HTTP_PORT"
     close_firewall "$SOCKS_PORT"
@@ -453,17 +418,8 @@ clear_cache() {
     squid -z >/dev/null 2>&1 || true
     systemctl start squid >/dev/null 2>&1 || true
 
-    print_info "Cleaning Dante logs..."
-    > /var/log/danted.log 2>/dev/null || true
-    chmod 666 /var/log/danted.log 2>/dev/null || true
-    
-    local dante_svc="danted"
-    if systemctl list-unit-files | grep -q "^dante-server"; then
-        dante_svc="dante-server"
-    elif systemctl list-unit-files | grep -q "^sockd"; then
-        dante_svc="sockd"
-    fi
-    systemctl restart "$dante_svc" >/dev/null 2>&1 || true
+    print_info "Restarting MicroSocks service..."
+    systemctl restart microsocks >/dev/null 2>&1 || true
 
     print_success "Cache and log files cleared successfully!"
 }
@@ -510,20 +466,19 @@ monitor_status() {
             echo -e "Status: ${RED}Stopped${NC}"
         fi
 
-        echo -e "\n${BOLD}--- Dante Proxy (Port $SOCKS_PORT) ---${NC}"
-        local dante_svc=""
-        if systemctl list-unit-files | grep -Eq "^(dante-server|danted|sockd|dante)"; then
+        echo -e "\n${BOLD}--- MicroSocks SOCKS5 Proxy (Port $SOCKS_PORT) ---${NC}"
+        if systemctl is-active microsocks &>/dev/null; then
+            local socks_conn
+            socks_conn=$(ss -tn state established '( sport = :'${SOCKS_PORT}' )' 2>/dev/null | wc -l)
+            socks_conn=$((socks_conn - 1))
+            [[ $socks_conn -lt 0 ]] && socks_conn=0
+            echo -e "Active Connections: $socks_conn"
+            echo -e "Status: ${GREEN}Running${NC}"
+        elif systemctl list-unit-files | grep -Eq "^(dante-server|danted|sockd|dante)"; then
+            local dante_svc
             dante_svc=$(systemctl list-unit-files | grep -Eo "^(dante-server|danted|sockd|dante)" | head -n1)
-        fi
-
-        if [[ -n "$dante_svc" ]]; then
             if systemctl is-active "$dante_svc" &>/dev/null; then
-                local dante_conn
-                dante_conn=$(ss -tn state established '( sport = :'${SOCKS_PORT}' )' 2>/dev/null | wc -l)
-                dante_conn=$((dante_conn - 1))
-                [[ $dante_conn -lt 0 ]] && dante_conn=0
-                echo -e "Active Connections: $dante_conn"
-                echo -e "Status: ${GREEN}Running${NC}"
+                echo -e "Status: ${GREEN}Running (Dante)${NC}"
             else
                 echo -e "Status: ${RED}Stopped${NC}"
             fi

@@ -159,7 +159,7 @@ run_benchmark() {
     
     echo ""
     echo "=========================================="
-    echo " 2. Testing Dante (SOCKS5) Proxy ($socks_host)"
+    echo " 2. Testing MicroSocks (SOCKS5) Proxy ($socks_host)"
     echo "=========================================="
     format_curl_timing "SOCKS5" "$socks_host" "$auth"
     echo ""

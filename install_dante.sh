@@ -45,14 +45,8 @@ EOF
     echo "internal: 127.0.0.1 port = 1080" >> "$config_file"
     if [[ -n "$DEFAULT_INTERFACE" ]]; then
         echo "internal: ${DEFAULT_INTERFACE} port = 1080" >> "$config_file"
-    fi
-    for ip in "${ALL_IPV4[@]}"; do
-        if [[ "$ip" != "127.0.0.1" ]]; then
-            echo "internal: ${ip} port = 1080" >> "$config_file"
-        fi
-    done
-    if [[ "$HAS_IPV6" == "true" ]]; then
-        echo "internal: ::0 port = 1080" >> "$config_file"
+    elif [[ -n "$PRIMARY_IPV4" && "$PRIMARY_IPV4" != "127.0.0.1" ]]; then
+        echo "internal: ${PRIMARY_IPV4} port = 1080" >> "$config_file"
     fi
 
     # External Interfaces

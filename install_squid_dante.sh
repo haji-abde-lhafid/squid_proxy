@@ -10,16 +10,16 @@ install_both() {
     local auth="${1:-true}"
     
     show_header
-    print_info "Starting Squid + Dante Installation..."
+    print_info "Starting Squid + MicroSocks Installation..."
     
     bash "$(dirname "$0")/install_squid.sh" "$auth"
     local sq_status=$?
     
-    bash "$(dirname "$0")/install_dante.sh" "$auth"
+    bash "$(dirname "$0")/install_microsocks.sh" "$auth"
     local da_status=$?
     
     if [[ $sq_status -eq 0 && $da_status -eq 0 ]]; then
-        print_success "Squid and Dante installed successfully!"
+        print_success "Squid and MicroSocks installed successfully!"
     else
         print_error "One or more installations failed. Please check the logs."
     fi

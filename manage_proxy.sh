@@ -9,7 +9,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
 # Repository details
 REPO_URL="https://raw.githubusercontent.com/haji-abde-lhafid/squid_proxy/main"
-FILES=("common.sh" "system_utils.sh" "network_utils.sh" "user_manager.sh" "install_squid.sh" "install_dante.sh" "install_squid_dante.sh" "optimize_proxy.sh" "benchmark_proxy.sh" "uninstall_squid.sh" "uninstall_dante.sh" "repair_proxy.sh" "monitor_proxy.sh" "clear_cache.sh")
+FILES=("common.sh" "system_utils.sh" "network_utils.sh" "user_manager.sh" "install_squid.sh" "install_microsocks.sh" "install_squid_dante.sh" "optimize_proxy.sh" "benchmark_proxy.sh" "uninstall_squid.sh" "uninstall_microsocks.sh" "repair_proxy.sh" "monitor_proxy.sh" "clear_cache.sh")
 
 # Download files every time
 echo "Downloading required files from repository..."
@@ -81,7 +81,7 @@ main_menu() {
             2) 
                 if prompt_confirm "Are you sure you want to uninstall EVERYTHING?" "N"; then
                     bash "uninstall_squid.sh"
-                    bash "uninstall_dante.sh"
+                    bash "uninstall_microsocks.sh" 2>/dev/null || bash "uninstall_dante.sh" 2>/dev/null || true
                     echo ""
                     read -r -p "Press Enter to continue..."
                 fi
