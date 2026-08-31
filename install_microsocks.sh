@@ -68,6 +68,15 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 EOF
 
+    print_info "Stopping any conflicting proxy daemons on port ${SOCKS_PORT}..."
+    systemctl stop danted dante-server sockd dante microsocks 3proxy >/dev/null 2>&1 || true
+    systemctl disable danted dante-server sockd dante >/dev/null 2>&1 || true
+    pkill -9 -f "sockd|danted|microsocks|3proxy" 2>/dev/null || true
+    if command -v fuser &>/dev/null; then
+        fuser -k "${SOCKS_PORT}/tcp" >/dev/null 2>&1 || true
+    fi
+    sleep 1
+
     systemctl daemon-reload
     systemctl enable microsocks >/dev/null 2>&1 || true
     systemctl restart microsocks >/dev/null 2>&1 || true

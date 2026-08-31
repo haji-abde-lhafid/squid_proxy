@@ -48,6 +48,9 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
+            systemctl stop danted dante-server sockd dante microsocks 3proxy >/dev/null 2>&1 || true
+            pkill -9 -f "sockd|danted|microsocks|3proxy" 2>/dev/null || true
+            if command -v fuser &>/dev/null; then fuser -k 1080/tcp >/dev/null 2>&1 || true; fi
             systemctl daemon-reload && systemctl enable microsocks >/dev/null 2>&1 && systemctl restart microsocks >/dev/null 2>&1
             da_status=$?
         else
